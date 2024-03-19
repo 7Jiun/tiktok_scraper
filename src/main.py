@@ -5,20 +5,12 @@ from bs4 import BeautifulSoup
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
+from datetime import datetime
 import psutil
 
 
 def random_sleep(minimum, maximum):
     time.sleep(random.uniform(minimum, maximum))
-
-
-def get_tiktok_video_stat(video_path):
-    stats = {
-        "like": 2222,
-        "comments": 22,
-        "share": 17
-    }
-    return stats
 
 
 def is_port_in_use(port):
@@ -73,10 +65,11 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
                     "video_title": '',
                     "video_link": '',
                     "viewed_number": '',
-                    "likes_number": 0,
-                    "comments_number": 0,
-                    "saved_number": 0,
-                    "shared_number": 0
+                    "likes_number": [],
+                    "comments_number": [],
+                    "saved_number": [],
+                    "shared_number": [],
+                    "record_time": [],
                 }
 
                 title_element = div_item.find('a', title=True)
@@ -112,6 +105,12 @@ def get_video_stat_data(soup, attribute_value):
         return ''
 
 
+def get_current_month_hour():
+    now = datetime.now()
+    month_and_hour = now.strftime("%m/%d %H:%M")
+    return month_and_hour
+
+
 def scrape_video_stats(driver, video_info):
     driver.get(video_info['video_link'])
     random_sleep(3, 5)
@@ -124,14 +123,16 @@ def scrape_video_stats(driver, video_info):
     keys = ['likes_number', 'comments_number', 'shared_number', 'saved_number']
     for result_key, attribute in zip(keys, attributes):
         new_state_value = get_video_stat_data(div_item, attribute)
-        video_info[result_key] = new_state_value
+        video_info[result_key].append(new_state_value)
+    current_month_and_hour = get_current_month_hour()
+    video_info['record_time'].append(current_month_and_hour)
 
 
 def close_driver(driver):
     driver.quit()
 
 
-# Example usage
+# start here
 chrome_driver_path = '/Users/wuqijun/Downloads/chromedriver-mac-arm64/chromedriver'
 chrome_app_path = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 port = 3002
