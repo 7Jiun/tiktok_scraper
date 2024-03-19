@@ -1,0 +1,17 @@
+# 虛擬環境
+venv/
+
+# Python 緩存檔案
+__pycache__/
+*.py[cod]
+
+# 操作系統產生的檔案
+.DS_Store
+Thumbs.db
+
+# IDE 設置
+.idea/
+.vscode/
+*.swp
+
+*.html
