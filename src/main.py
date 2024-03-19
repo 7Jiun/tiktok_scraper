@@ -72,7 +72,11 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
                 video_info = {
                     "video_title": '',
                     "video_link": '',
-                    "viewed_number": ''
+                    "viewed_number": '',
+                    "likes_number": 0,
+                    "comments_number": 0,
+                    "saved_number": 0,
+                    "shared_number": 0
                 }
 
                 title_element = div_item.find('a', title=True)
@@ -93,8 +97,38 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
         return video_infos
     except Exception as e:
         print(f'scraping interruptted, error: {e}')
-    finally:
-        driver.quit()
+
+
+def get_video_stat_data(soup, attribute_value):
+    try:
+        result = soup.find('strong', {'data-e2e': attribute_value}).text
+        if result:
+            return result
+        else:
+            print(f"No data found for {attribute_value}")
+            return ''
+    except AttributeError:
+        print(f"Data extraction failed for {attribute_value}")
+        return ''
+
+
+def scrape_video_stats(driver, video_info):
+    driver.get(video_info['video_link'])
+    random_sleep(3, 5)
+    current_page_html = driver.page_source
+    soup = BeautifulSoup(current_page_html, 'html.parser')
+    div_item = soup.find(
+        'div', class_='css-1npmxy5-DivActionItemContainer')
+    attributes = ['like-count', 'comment-count',
+                  'share-count', 'undefined-count']
+    keys = ['likes_number', 'comments_number', 'shared_number', 'saved_number']
+    for result_key, attribute in zip(keys, attributes):
+        new_state_value = get_video_stat_data(div_item, attribute)
+        video_info[result_key] = new_state_value
+
+
+def close_driver(driver):
+    driver.quit()
 
 
 # Example usage
@@ -107,13 +141,5 @@ start_chrome_subprocess(chrome_app_path, port, user_data_dir)
 driver = start_chrome_driver(
     chrome_driver_path, port)
 user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
-print(user_video_infos)
-schema = {
-    "video_link": "https://www.tiktok.com/@geevideo/video/7294480190065970450",
-    "video_title": "即新聞快報",
-    "viewed_number": 222,
-    "liked_number": 20,
-    "comment_number": 12,
-    "saved_number": 6,
-    "shared_number": 3
-}
+for user_video_info in user_video_infos:
+    scrape_video_stats(user_video_info)
