@@ -6,6 +6,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from datetime import datetime
+from write_csv import write_video_infos_into_csv, get_current_csv
 import psutil
 
 
@@ -45,11 +46,12 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
         last_height = driver.execute_script(
             "return document.body.scrollHeight")
         video_infos = []
-        while True:
+        counter = 1
+        while (counter < 2):
             driver.execute_script(
                 "window.scrollTo(0, document.body.scrollHeight);")
 
-            random_sleep(4, 6)
+            random_sleep(5, 10)
 
             new_height = driver.execute_script(
                 "return document.body.scrollHeight")
@@ -60,16 +62,17 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
             soup = BeautifulSoup(current_page_html, 'html.parser')
             div_items = soup.find_all(
                 'div', class_='css-x6y88p-DivItemContainerV2')
+            div_items_set = set(div_items)
             for div_item in div_items:
                 video_info = {
                     "video_title": '',
                     "video_link": '',
                     "viewed_number": '',
-                    "likes_number": [],
-                    "comments_number": [],
-                    "saved_number": [],
-                    "shared_number": [],
-                    "record_time": [],
+                    "likes_number": [0],
+                    "comments_number": [0],
+                    "saved_number": [0],
+                    "shared_number": [0],
+                    "record_time": [0],
                 }
 
                 title_element = div_item.find('a', title=True)
@@ -87,6 +90,7 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
                     video_info["viewed_number"] = views_element.text
 
                 video_infos.append(video_info)
+            counter += 1
         return video_infos
     except Exception as e:
         print(f'scraping interruptted, error: {e}')
@@ -128,6 +132,11 @@ def scrape_video_stats(driver, video_info):
     video_info['record_time'].append(current_month_and_hour)
 
 
+def is_new_video(current_video_info, new_scraped_info):
+    return not (
+        current_video_info[0]['video_link'] == new_scraped_info['video_link'])
+
+
 def close_driver(driver):
     driver.quit()
 
@@ -138,9 +147,16 @@ chrome_app_path = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
 port = 3002
 user_data_dir = '/Users/wuqijun/Library/Application Support/Google/Chrome/Default'
 tiktok_user = 'geevideo'
+csv_dir = f'../{tiktok_user}_video_stats2.csv'
+
 start_chrome_subprocess(chrome_app_path, port, user_data_dir)
 driver = start_chrome_driver(
     chrome_driver_path, port)
 user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
-for user_video_info in user_video_infos:
-    scrape_video_stats(user_video_info)
+current_video_infos = get_current_csv(csv_dir)
+if (is_new_video(current_video_infos, user_video_infos)):
+    current_video_infos.insert(0, user_video_infos[0])
+for video_info in current_video_infos:
+    scrape_video_stats(driver, video_info)
+close_driver(driver)
+write_video_infos_into_csv(current_video_infos, csv_dir)
