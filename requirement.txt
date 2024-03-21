@@ -1,2 +1,6 @@
-selenium
-time
+beautifulsoup4==4.11.1
+selenium==4.1.0
+python-dotenv==0.19.2
+psutil==5.9.0
+schedule==1.1.0
+pandas==2.2.1

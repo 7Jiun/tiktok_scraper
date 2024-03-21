@@ -7,7 +7,11 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from datetime import datetime
 from write_csv import write_video_infos_into_csv, get_current_csv
+from functools import partial
+from dotenv import load_dotenv
+import os
 import psutil
+import schedule
 
 
 def random_sleep(minimum, maximum):
@@ -29,7 +33,10 @@ def start_chrome_subprocess(chrome_app_path, port, user_data_dir):
 
 def start_chrome_driver(chrome_driver_path, port):
     chrome_options = Options()
-    chrome_options.add_argument("start-maximized")
+    # chrome_options.add_argument("start-maximized")
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument(
+        "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
     chrome_options.add_experimental_option(
         "debuggerAddress", f'localhost:{port}')
     chrome_options.page_load_strategy = 'normal'
@@ -67,7 +74,7 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
                 video_info = {
                     "video_title": '',
                     "video_link": '',
-                    "viewed_number": '',
+                    "viewed_number": [0],
                     "likes_number": [0],
                     "comments_number": [0],
                     "saved_number": [0],
@@ -87,13 +94,21 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
                     'strong', attrs={'data-e2e': 'video-views'})
 
                 if views_element:
-                    video_info["viewed_number"] = views_element.text
+                    video_info["viewed_number"][0] = views_element.text
 
                 video_infos.append(video_info)
             counter += 1
         return video_infos
     except Exception as e:
         print(f'scraping interruptted, error: {e}')
+
+
+def update_viewed_number(current_video_infos, new_scraped_user_infos):
+    for current_video_info, new_scraped_user_info in zip(current_video_infos, new_scraped_user_infos):
+        if 'viewed_number' not in current_video_info:
+            current_video_info['viewed_number'] = []
+        current_video_info['viewed_number'].append(
+            new_scraped_user_info['viewed_number'][0])
 
 
 def get_video_stat_data(soup, attribute_value):
@@ -117,46 +132,84 @@ def get_current_month_hour():
 
 def scrape_video_stats(driver, video_info):
     driver.get(video_info['video_link'])
-    random_sleep(3, 5)
+    random_sleep(3, 5)  # 假設 random_sleep 是一個自定義函數
     current_page_html = driver.page_source
     soup = BeautifulSoup(current_page_html, 'html.parser')
-    div_item = soup.find(
-        'div', class_='css-1npmxy5-DivActionItemContainer')
+    div_item = soup.find('div', class_='css-1npmxy5-DivActionItemContainer')
     attributes = ['like-count', 'comment-count',
                   'share-count', 'undefined-count']
     keys = ['likes_number', 'comments_number', 'shared_number', 'saved_number']
+
     for result_key, attribute in zip(keys, attributes):
         new_state_value = get_video_stat_data(div_item, attribute)
-        video_info[result_key].append(new_state_value)
+        if isinstance(video_info[result_key], list):
+            video_info[result_key].append(new_state_value)
+        else:
+            video_info[result_key] = [new_state_value]
+
     current_month_and_hour = get_current_month_hour()
-    video_info['record_time'].append(current_month_and_hour)
+    if isinstance(video_info['record_time'], list):
+        video_info['record_time'].append(current_month_and_hour)
+    else:
+        video_info['record_time'] = [current_month_and_hour]
 
 
 def is_new_video(current_video_info, new_scraped_info):
     return not (
-        current_video_info[0]['video_link'] == new_scraped_info['video_link'])
+        current_video_info[0]['video_link'] == new_scraped_info[0]['video_link'])
 
 
 def close_driver(driver):
     driver.quit()
 
 
-# start here
-chrome_driver_path = '/Users/wuqijun/Downloads/chromedriver-mac-arm64/chromedriver'
-chrome_app_path = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
-port = 3002
-user_data_dir = '/Users/wuqijun/Library/Application Support/Google/Chrome/Default'
-tiktok_user = 'geevideo'
-csv_dir = f'../{tiktok_user}_video_stats2.csv'
+def full_scrape_job(status):
+    load_dotenv()
+    chrome_driver_path = os.getenv('CHROME_DRIVER_PATH')
+    chrome_app_path = os.getenv('CHROME_APP_PATH')
+    port = os.getenv('PORT')
+    user_data_dir = os.getenv('USER_DATA_DIR')
+    tiktok_user = os.getenv('TIKTOK_USER')
+    csv_dir = f'../{tiktok_user}_video_stats.csv'
 
-start_chrome_subprocess(chrome_app_path, port, user_data_dir)
-driver = start_chrome_driver(
-    chrome_driver_path, port)
-user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
-current_video_infos = get_current_csv(csv_dir)
-if (is_new_video(current_video_infos, user_video_infos)):
-    current_video_infos.insert(0, user_video_infos[0])
-for video_info in current_video_infos:
-    scrape_video_stats(driver, video_info)
-close_driver(driver)
-write_video_infos_into_csv(current_video_infos, csv_dir)
+    start_chrome_subprocess(chrome_app_path, port, user_data_dir)
+    driver = start_chrome_driver(
+        chrome_driver_path, port)
+    if status == 'first':
+        user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
+        for video_info in user_video_infos:
+            scrape_video_stats(driver, video_info)
+        close_driver(driver)
+        write_video_infos_into_csv(user_video_infos, csv_dir)
+    elif status == 'track':
+        user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
+        current_video_infos = get_current_csv(csv_dir)
+        if (is_new_video(current_video_infos, user_video_infos)):
+            current_video_infos.insert(0, user_video_infos[0])
+        update_viewed_number(current_video_infos, user_video_infos)
+        for video_info in current_video_infos:
+            scrape_video_stats(driver, video_info)
+        close_driver(driver)
+        write_video_infos_into_csv(current_video_infos, csv_dir)
+    else:
+        print('invalid work status')
+
+
+def safe_run(job_func):
+    try:
+        job_func()
+    except Exception as e:
+        current_time = get_current_month_hour()
+        print(f"An error occurred: {e}, occured time:{current_time}")
+
+
+try:
+    full_scrape_job('first')
+except Exception as e:
+    print(f'first error: {e}')
+
+schedule.every(1).hour.do(safe_run, partial(
+    full_scrape_job, 'track'))
+while True:
+    schedule.run_pending()
+    time.sleep(300)
