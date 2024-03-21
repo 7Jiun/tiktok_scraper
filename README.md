@@ -33,7 +33,7 @@ This project leverages a web driver to implement an automated TikTok user video 
         - CHROME_DRIVER_PATH: Path to your Chromedriver.
         - CHROME_APP_PATH: Path to your Chrome application.
         - PORT: Port for remote debugging.
-        - USER_DATA_DIR: Path to the user data directory.
+        - USER_DATA_DIR: Path to the user data of Chrome. (you can get yours in 'chrome://version')
         - TIKTOK_USER: Target TikTok username.
 
     2. start crawler by following command:

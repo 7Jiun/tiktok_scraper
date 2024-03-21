@@ -33,7 +33,7 @@ def start_chrome_subprocess(chrome_app_path, port, user_data_dir):
 
 def start_chrome_driver(chrome_driver_path, port):
     chrome_options = Options()
-    # chrome_options.add_argument("start-maximized")
+    chrome_options.add_argument("start-maximized")
     chrome_options.add_argument("--headless")
     chrome_options.add_argument(
         "user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3")
@@ -154,9 +154,17 @@ def scrape_video_stats(driver, video_info):
         video_info['record_time'] = [current_month_and_hour]
 
 
-def is_new_video(current_video_info, new_scraped_info):
-    return not (
-        current_video_info[0]['video_link'] == new_scraped_info[0]['video_link'])
+def find_new_videos(current_video_infos, new_scraped_infos):
+    current_video_links = {info['video_link'] for info in current_video_infos}
+    new_videos = [
+        info for info in new_scraped_infos if info['video_link'] not in current_video_links]
+
+    return new_videos
+
+
+def insert_new_videos_at_beginning(current_video_infos, new_videos):
+    updated_video_infos = new_videos + current_video_infos
+    return updated_video_infos
 
 
 def close_driver(driver):
@@ -184,8 +192,10 @@ def full_scrape_job(status):
     elif status == 'track':
         user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
         current_video_infos = get_current_csv(csv_dir)
-        if (is_new_video(current_video_infos, user_video_infos)):
-            current_video_infos.insert(0, user_video_infos[0])
+        new_videos = find_new_videos(current_video_infos, user_video_infos)
+        if (len(new_videos) > 0):
+            current_video_infos = insert_new_videos_at_beginning(
+                current_video_infos, new_videos)
         update_viewed_number(current_video_infos, user_video_infos)
         for video_info in current_video_infos:
             scrape_video_stats(driver, video_info)
