@@ -264,12 +264,14 @@ def safe_run(job_func):
         print(f"An error occurred: {e}, occured time:{current_time}")
 
 
+time_period = os.getenv('TIME_PERIOD')
+
 try:
     full_scrape_job('first')
 except Exception as e:
     print(f'first error: {e}')
 
-schedule.every(10).minutes.do(safe_run, partial(
+schedule.every(time_period).hour.do(safe_run, partial(
     full_scrape_job, 'track'))
 while True:
     schedule.run_pending()

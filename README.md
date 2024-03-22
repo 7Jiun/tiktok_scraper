@@ -36,6 +36,7 @@ This project leverages a web driver to implement an automated TikTok user video 
         - USER_DATA_DIR: Path to the user data of Chrome. (you can get yours in 'chrome://version')
         - TIKTOK_USER: Target TikTok username.
         - DEADLINE_TIME: The last date of the data you want to track, please follow the format '{Month}-{Day}'; examples:'3-15','12-5','11-16','1-9'
+        - CRAWLER_PERIOD: the work cycle for the program. enter 1 for track every hour.
 
     2. start crawler by following command:
         sudo python src/main.py
