@@ -10,6 +10,7 @@ from write_csv import write_video_infos_into_csv, get_current_csv
 from functools import partial
 from dotenv import load_dotenv
 import os
+import re
 import psutil
 import schedule
 
@@ -104,11 +105,15 @@ def scrape_tiktok_user_videos(driver, tiktok_user):
 
 
 def update_viewed_number(current_video_infos, new_scraped_user_infos):
-    for current_video_info, new_scraped_user_info in zip(current_video_infos, new_scraped_user_infos):
-        if 'viewed_number' not in current_video_info:
-            current_video_info['viewed_number'] = []
-        current_video_info['viewed_number'].append(
-            new_scraped_user_info['viewed_number'][0])
+    new_info_dict = {info['video_link']: info['viewed_number'][0]
+                     for info in new_scraped_user_infos if 'viewed_number' in info and info['viewed_number']}
+
+    for current_video_info in current_video_infos:
+        if current_video_info['video_link'] in new_info_dict:
+            if 'viewed_number' not in current_video_info:
+                current_video_info['viewed_number'] = []
+            current_video_info['viewed_number'].append(
+                new_info_dict[current_video_info['video_link']])
 
 
 def get_video_stat_data(soup, attribute_value):
@@ -130,12 +135,15 @@ def get_current_month_hour():
     return month_and_hour
 
 
-def scrape_video_stats(driver, video_info):
+def scrape_video_stats(driver, video_info, deadline_time):
     driver.get(video_info['video_link'])
-    random_sleep(3, 5)  # 假設 random_sleep 是一個自定義函數
+    random_sleep(3, 5)
     current_page_html = driver.page_source
     soup = BeautifulSoup(current_page_html, 'html.parser')
     div_item = soup.find('div', class_='css-1npmxy5-DivActionItemContainer')
+    time_item = soup.find('span', class_='css-1kcycbd-SpanOtherInfos evv7pft3')
+    if not (is_video_time_qualified(time_item, deadline_time)):
+        return False
     attributes = ['like-count', 'comment-count',
                   'share-count', 'undefined-count']
     keys = ['likes_number', 'comments_number', 'shared_number', 'saved_number']
@@ -152,12 +160,43 @@ def scrape_video_stats(driver, video_info):
         video_info['record_time'].append(current_month_and_hour)
     else:
         video_info['record_time'] = [current_month_and_hour]
+    return True
+
+
+def is_video_time_qualified(video_time_item, deadline_time):
+    acceptable_time_labels = ['ago', '前']
+    video_time_spans = video_time_item.find_all('span')
+    if len(video_time_spans) < 3:
+        return True
+    date_text = video_time_spans[2].text
+    if date_text == deadline_time:
+        return True
+    for label in acceptable_time_labels:
+        if label in date_text:
+            return True
+    date_regex = re.compile(r'(\d{2})-(\d{2})')
+    match = date_regex.search(date_text)
+    if match:
+        current_year = datetime.now().year
+        date_text_datetime = datetime.strptime(
+            f"{current_year}-{match.group(1)}-{match.group(2)}", "%Y-%m-%d")
+
+        deadline_datetime = datetime.strptime(
+            f"{current_year}-{deadline_time}", "%Y-%m-%d")
+
+        if date_text_datetime >= deadline_datetime:
+            return True
+    return False
 
 
 def find_new_videos(current_video_infos, new_scraped_infos):
-    current_video_links = {info['video_link'] for info in current_video_infos}
-    new_videos = [
-        info for info in new_scraped_infos if info['video_link'] not in current_video_links]
+    first_current_video_link = current_video_infos[0]['video_link']
+
+    new_videos = []
+    for info in new_scraped_infos:
+        if info['video_link'] == first_current_video_link:
+            break
+        new_videos.append(info)
 
     return new_videos
 
@@ -165,6 +204,12 @@ def find_new_videos(current_video_infos, new_scraped_infos):
 def insert_new_videos_at_beginning(current_video_infos, new_videos):
     updated_video_infos = new_videos + current_video_infos
     return updated_video_infos
+
+
+def filter_videos_with_deadline(video_infos):
+    filtered_video_infos = [
+        video for video in video_infos if video['likes_number'] != [0]]
+    return filtered_video_infos
 
 
 def close_driver(driver):
@@ -178,6 +223,7 @@ def full_scrape_job(status):
     port = os.getenv('PORT')
     user_data_dir = os.getenv('USER_DATA_DIR')
     tiktok_user = os.getenv('TIKTOK_USER')
+    deadline_time = os.getenv('DEADLINE_TIME')
     csv_dir = f'../{tiktok_user}_video_stats.csv'
 
     start_chrome_subprocess(chrome_app_path, port, user_data_dir)
@@ -186,9 +232,14 @@ def full_scrape_job(status):
     if status == 'first':
         user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
         for video_info in user_video_infos:
-            scrape_video_stats(driver, video_info)
+            is_successed = scrape_video_stats(
+                driver, video_info, deadline_time)
+            if not is_successed:
+                break
+        filtered_time_video_infos = filter_videos_with_deadline(
+            user_video_infos)
         close_driver(driver)
-        write_video_infos_into_csv(user_video_infos, csv_dir)
+        write_video_infos_into_csv(filtered_time_video_infos, csv_dir)
     elif status == 'track':
         user_video_infos = scrape_tiktok_user_videos(driver, tiktok_user)
         current_video_infos = get_current_csv(csv_dir)
@@ -198,7 +249,7 @@ def full_scrape_job(status):
                 current_video_infos, new_videos)
         update_viewed_number(current_video_infos, user_video_infos)
         for video_info in current_video_infos:
-            scrape_video_stats(driver, video_info)
+            scrape_video_stats(driver, video_info, deadline_time)
         close_driver(driver)
         write_video_infos_into_csv(current_video_infos, csv_dir)
     else:
@@ -218,7 +269,7 @@ try:
 except Exception as e:
     print(f'first error: {e}')
 
-schedule.every(1).hour.do(safe_run, partial(
+schedule.every(10).minutes.do(safe_run, partial(
     full_scrape_job, 'track'))
 while True:
     schedule.run_pending()

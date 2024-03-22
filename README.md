@@ -1,6 +1,6 @@
 # Tiktok scraper
 
-This project leverages a web driver to implement an automated TikTok user video data crawler. It is designed to scrape information such as video titles, links, view counts, likes, comments, shares, saves, and recording times for specified users.
+This project leverages a web driver to implement an automated TikTok user video data crawler. It is designed to scrape information such as video titles, links, view counts, likes, comments, shares, saves, and recording times for specified users in specific time period (must more than a week).
 
 ## Features
 
@@ -35,6 +35,7 @@ This project leverages a web driver to implement an automated TikTok user video 
         - PORT: Port for remote debugging.
         - USER_DATA_DIR: Path to the user data of Chrome. (you can get yours in 'chrome://version')
         - TIKTOK_USER: Target TikTok username.
+        - DEADLINE_TIME: The last date of the data you want to track, please follow the format '{Month}-{Day}'; examples:'3-15','12-5','11-16','1-9'
 
     2. start crawler by following command:
         sudo python src/main.py
