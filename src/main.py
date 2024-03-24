@@ -141,7 +141,9 @@ def scrape_video_stats(driver, video_info, deadline_time):
     current_page_html = driver.page_source
     soup = BeautifulSoup(current_page_html, 'html.parser')
     div_item = soup.find('div', class_='css-1npmxy5-DivActionItemContainer')
-    time_item = soup.find('span', class_='css-1kcycbd-SpanOtherInfos evv7pft3')
+    print(div_item)
+    time_item = soup.find(
+        'span', attrs={"data-e2e": "browser-nickname"})
     if not (is_video_time_qualified(time_item, deadline_time)):
         return False
     attributes = ['like-count', 'comment-count',
@@ -217,14 +219,13 @@ def close_driver(driver):
 
 
 def full_scrape_job(status):
-    load_dotenv()
     chrome_driver_path = os.getenv('CHROME_DRIVER_PATH')
     chrome_app_path = os.getenv('CHROME_APP_PATH')
     port = os.getenv('PORT')
     user_data_dir = os.getenv('USER_DATA_DIR')
     tiktok_user = os.getenv('TIKTOK_USER')
     deadline_time = os.getenv('DEADLINE_TIME')
-    csv_dir = f'../{tiktok_user}_video_stats.csv'
+    csv_dir = os.getenv('CSV_DIR')
 
     start_chrome_subprocess(chrome_app_path, port, user_data_dir)
     driver = start_chrome_driver(
@@ -264,14 +265,15 @@ def safe_run(job_func):
         print(f"An error occurred: {e}, occured time:{current_time}")
 
 
-crawler_period = os.getenv('CRAWLER_PERIOD')
+load_dotenv()
+crawler_period = int(os.getenv('CRAWLER_PERIOD'))
 
 try:
     full_scrape_job('first')
 except Exception as e:
     print(f'first error: {e}')
 
-schedule.every(crawler_period).hour.do(safe_run, partial(
+schedule.every(crawler_period).hours.do(safe_run, partial(
     full_scrape_job, 'track'))
 while True:
     schedule.run_pending()
