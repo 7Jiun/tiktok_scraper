@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import streamlit as st
 from dotenv import load_dotenv
 from write_csv import get_current_csv
 import matplotlib
@@ -47,7 +48,10 @@ def draw_metrics_separate_axes(object_data):
                 float(raw_numbers[i][:-1]) * 1000)
         elif isinstance(raw_numbers[i], int):
             int_viewed_numbers[i] = raw_numbers[i]
+        elif isinstance(raw_numbers[i], str):
+            int_viewed_numbers[i] = int(raw_numbers[i])
         else:
+            print(type(raw_numbers[i]))
             int_viewed_numbers[i] = ''
 
     fig, ax1 = plt.subplots(figsize=(10, 6))
@@ -65,11 +69,14 @@ def draw_metrics_separate_axes(object_data):
     labels = ['Likes',  'Comments', 'Shares', 'Saves']
 
     axes = [ax1.twinx() for _ in metrics]
-    for metric, ax, color, label in zip(metrics, axes, colors, labels):
+    y_limits = [(0, 50), (0, 50), (0, 50), (0, 50)]
+
+    for metric, ax, color, label, y_lim in zip(metrics, axes, colors, labels, y_limits):
         ax.plot(object_data['record_time'], object_data[metric],
                 label=label, color=color, marker='o')
         ax.set_ylabel(label, color=color)
         ax.tick_params(axis='y', labelcolor=color)
+        ax.set_ylim(y_lim)
 
     for i, ax in enumerate(axes):
         ax.spines['right'].set_position(('outward', i * 60))
@@ -79,7 +86,7 @@ def draw_metrics_separate_axes(object_data):
     plt.subplots_adjust(top=0.9, bottom=0.1)
     char_title = object_data['video_title']
     plt.title(f'{char_title}')
-    plt.show()
+    return fig
 
 
 def get_video_by_title(video_infos, video_title):
@@ -96,22 +103,21 @@ def plot_by_video_title(video_infos, video_title):
 
 
 load_dotenv()
+st.set_option('deprecation.showPyplotGlobalUse', False)
 matplotlib.rcParams['font.family'] = 'Heiti TC'
 matplotlib.rcParams['axes.unicode_minus'] = False
 csv_dir = os.getenv('CSV_DIR')
 video_infos = get_current_csv(csv_dir)
-video_title = input('please enter the video title you want to search: \n')
+video_titles = []
+
+for video_info in video_infos:
+    video_titles.append(video_info['video_title'])
+
+video_title = st.selectbox('Choose a video title:', video_titles)
+
 try:
-    plot_by_video_title(video_infos, video_title)
+    if video_title:
+        fig = plot_by_video_title(video_infos, video_title)
+        st.pyplot(fig)
 except Exception as e:
     print(f'plot error: {e}')
-
-# preprocess_infos = [None] * len(video_infos)
-
-# for i in range(len(video_infos)):
-#     try:
-#         preprocess_infos[i] = preprocess_info_dict(video_infos[i])
-#         draw_metrics_separate_axes(preprocess_infos[i])
-#     except Exception as e:
-#         print(f"Error processing video '{video_infos[i]['video_title']}': {e}")
-#         continue
