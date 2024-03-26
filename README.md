@@ -18,6 +18,7 @@ This project leverages a web driver to implement an automated TikTok user video 
     - Chrome browser
     - psutil
     - python-dotenv
+    - streamlit (for visualization)
 
 ## Installation Guide
 
@@ -43,3 +44,6 @@ This project leverages a web driver to implement an automated TikTok user video 
         sudo python src/main.py
 
     3. data will be save in the folder and in the .csv
+
+    4. use following command to get visualization data:
+        streamlit run visualization.py
